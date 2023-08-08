@@ -12,6 +12,7 @@ import (
 	"github.com/yalhyane/another-redis-memory-analyzer/utils"
 	"log"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ var (
 	password        string
 	askPassword     bool
 	delimiter       string
+	keysPattern     string
 	delimiterLevel  int
 	onlyDb          int
 	scanLength      int
@@ -39,6 +41,7 @@ var supportedOutFormat = map[string]bool{
 	jsonOutFormatStr:  true,
 }
 var supportedOutFormatStr string
+var keysPatternRegex = regexp.MustCompile(".*")
 
 // analyzeCmd represents the analyze command
 var analyzeCmd = &cobra.Command{
@@ -73,6 +76,14 @@ Note: This tool is intended to provide insights into memory usage of group of ke
 			}
 		}
 		var err error
+
+		if keysPattern != "" {
+			keysPatternRegex, err = regexp.Compile(keysPattern)
+			if err != nil {
+				return errors.New("key-pattern should be a valid regex: " + err.Error())
+			}
+		}
+
 		// ask for password
 		if askPassword {
 			prompt := promptui.Prompt{
@@ -110,6 +121,7 @@ func init() {
 	analyzeCmd.Flags().IntVarP(&delimiterLevel, "level", "l", 1, "The delimiter level of keys")
 	analyzeCmd.Flags().IntVarP(&onlyDb, "db", "D", -1, "Redis DB to analyse ( -1 will analyze all dbs )")
 	analyzeCmd.Flags().IntVarP(&scanLength, "scan", "S", 500, "Redis scan range length, number of keys to scan at once")
+	analyzeCmd.Flags().StringVarP(&keysPattern, "keys-pattern", "k", "", "Keys pattern to analyze")
 	analyzeCmd.Flags().StringVarP(&humanMinSize, "min-size", "s", "1KB", "Minimum size of group of keys to show, if group of keys is less than this size it won't be shown. Human readable size (KB, MB, GB...)")
 	analyzeCmd.Flags().StringSliceVarP(&outFormat, "format", "o", []string{"table"}, "Output format, supported values: "+supportedOutFormatStr)
 	analyzeCmd.Flags().IntVarP(&goroutinesPerDb, "goroutines", "g", 50, "Number of concurrent goroutines to analyze a redis DB")
@@ -233,6 +245,10 @@ func Start(client *redis.Client, delimiter string, delimiterLevel int, onlyDb in
 						if !disableBar {
 							bar.IncrBy(1)
 						}
+						if !keysPatternRegex.MatchString(key) {
+							continue
+						}
+
 						tmp := strings.Split(key, delimiter)
 						if len(tmp) > 1 && delimiterLevel < len(tmp) {
 							groupKey = strings.Join(tmp[0:delimiterLevel], delimiter) + delimiter + "*"

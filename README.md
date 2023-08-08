@@ -15,7 +15,7 @@ go build -o arma
 
 
 ## Usage
-Once you have installed aram, you can run it from the command line with the following syntax:
+Once you have installed arma, you can run it from the command line with the following syntax:
 ```bash
 arma analyze [OPTIONS]
 ```
